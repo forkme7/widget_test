@@ -24,7 +24,7 @@ iced.catchExceptions (str) -> console.error str
 
 ##=======================================================================
 
-TEST_TLF_LIMIT               = 20 # crank to low val (10) for faster incomplete results
+TEST_TLF_LIMIT               = Infinity # crank to low val (10) for faster incomplete results
 ROWS_TO_SHOW                 = 10
 MAX_ACTIVITY_PER_ROW         = 20
 COLLAPSE_AT_PER_ROW          = 5  # items after this number are collapsed
