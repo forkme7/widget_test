@@ -184,7 +184,8 @@ getMyKeybaseUsername = (_, cb) ->
   catch err
     console.log err
     console.log stdout
-  cb err, status?.Username
+    err = null
+  cb err, (status?.Username or "could_not_calc_username")
 
 # =================================================================================
 
