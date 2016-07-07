@@ -24,9 +24,11 @@ iced.catchExceptions (str) -> console.error str
 
 ##=======================================================================
 
-TEST_TLF_LIMIT               = Infinity # crank to low val (10) for faster incomplete results
+TEST_TLF_LIMIT               = 20 # crank to low val (10) for faster incomplete results
 ROWS_TO_SHOW                 = 10
-MAX_ACTIVITY_PER_ROW         = 4
+MAX_ACTIVITY_PER_ROW         = 20
+COLLAPSE_AT_PER_ROW          = 5  # items after this number are collapsed
+COLLAPSE_HOURS_PER_ROW       = 12 # items this many hours older than first item in row are collapsed
 TARGET_FRACTION_PUBLIC       = 0.5  # try to get approx this many rows public
 IGNORE_FILES_DATED_IN_FUTURE = true # there are files in my KBFS from 2185 A.D.
 TLFS_TO_EXCLUDE_IN_TESTING   = [    # e.g., "/keybase/private/foo" if you want to exclude that from test res
@@ -52,6 +54,8 @@ class File
     @writer = @_assignRandomWriter()
 
   getWriter: -> @writer
+
+  getMTime: -> @stat.mtime
 
   # -------------------------------------------------------------
   # PRIVATE
@@ -241,9 +245,15 @@ main = (_, cb) ->
   for tp in final_candidates[0...ROWS_TO_SHOW]
     # there are some files in my dir from 2185!
     console.log "\n#{tp.writer} - #{timeDisp tp.getMTime()} - #{tp.tlf.path.split(path.sep)[2...].join(path.sep)}"
-    for f in tp.getLastFiles()
+    for f, i in tp.getLastFiles()
       display_part = f.path.split(path.sep)[-1...][0]
-      console.log "   #{display_part}"
+      if (i >= COLLAPSE_AT_PER_ROW) or (tp.getMTime() - f.getMTime() > COLLAPSE_HOURS_PER_ROW * 3600*1000)
+        collapse_prefix = "     ---collapsed: "
+        collapse_suffix = " (#{timeDisp f.getMTime()})"
+      else
+        collapse_suffix = " (#{timeDisp f.getMTime()})"
+        collapse_prefix = ""
+      console.log "   #{collapse_prefix}#{display_part}#{collapse_suffix}"
   console.log "==============================================================="
 
 # ====================
