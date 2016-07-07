@@ -35,8 +35,9 @@ IGNORE_REGEXP =
   ///
      ( .git\/ )     # anything in a .git directory
    | ( \/\._ )         # ._FILES made in OSX
-   | (thumbs\.db$)     # some common OS files...
+   | (thumbs\.db$)     # some common OS files and temp files...
    | (desktop\.ini$)
+   | (~$)
    | (Icon\r$)
    | (.DS_Store$)
    | (.keybasa\/)      # anything else to exclude?
@@ -169,9 +170,9 @@ getAllTlfParticipants = (_, cb) ->
 
 timeDisp = (d) ->
   sec = (new Date() - d) / 1000
-  if sec < 60 then return Math.round(sec) + "sec"
-  else if (min = sec / 60) < 60 then return Math.round(min) + "min"
-  else if (hr  = min / 60) < 48 then return Math.round(hr) + "hr"
+  if sec < 60 then return Math.round(sec) + "s"
+  else if (min = sec / 60) < 60 then return Math.round(min) + "m"
+  else if (hr  = min / 60) < 48 then return Math.round(hr) + "h"
   else return Math.round(hr / 24) + "d"
 
 # =================================================================================
