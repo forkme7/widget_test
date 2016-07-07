@@ -25,10 +25,10 @@ iced.catchExceptions (str) -> console.error str
 ##=======================================================================
 
 TEST_TLF_LIMIT               = Infinity # crank to low val (10) for faster incomplete results
-ROWS_TO_SHOW                 = 10
-MAX_ACTIVITY_PER_ROW         = 20
-COLLAPSE_AT_PER_ROW          = 5  # items after this number are collapsed
-COLLAPSE_HOURS_PER_ROW       = 12 # items this many hours older than first item in row are collapsed
+ROWS_TO_SHOW                 = 20   # how many "rows" show up in the widget; a row is a TLF*user section
+MAX_ACTIVITY_PER_ROW         = 20   # max files inside a row (some can be inside "show more")
+COLLAPSE_AT_PER_ROW          = 5    # items after this number are collapsed
+COLLAPSE_HOURS_PER_ROW       = 48   # items this many hours older than first item in row are collapsed
 TARGET_FRACTION_PUBLIC       = 0.5  # try to get approx this many rows public
 IGNORE_FILES_DATED_IN_FUTURE = true # there are files in my KBFS from 2185 A.D.
 TLFS_TO_EXCLUDE_IN_TESTING   = [    # e.g., "/keybase/private/foo" if you want to exclude that from test res
