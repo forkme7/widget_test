@@ -1,0 +1,14 @@
+{
+  "name": "widget-activity-testing",
+  "version": "1.0.0",
+  "description": "",
+  "repository": {
+    "type": "git",
+    "url": "/keybase/public/chris,enyoc/git-origin/widget-activity-testing.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "iced-error": "0.0.9"
+  }
+}
