@@ -28,19 +28,25 @@ TEST_TLF_LIMIT               = Infinity # crank to low val (10) for faster incom
 ROWS_TO_SHOW                 = 20   # how many "rows" show up in the widget; a row is a TLF*user section
 MAX_ACTIVITY_PER_ROW         = 20   # max files inside a row (some can be inside "show more")
 COLLAPSE_AT_PER_ROW          = 5    # items after this number are collapsed
-COLLAPSE_HOURS_PER_ROW       = 48   # items this many hours older than first item in row are collapsed
+COLLAPSE_HOURS_PER_ROW       = 24*7 # items this many hours older than first item in row are collapsed
 TARGET_FRACTION_PUBLIC       = 0.5  # try to get approx this many rows public
 IGNORE_FILES_DATED_IN_FUTURE = true # there are files in my KBFS from 2185 A.D.
 TLFS_TO_EXCLUDE_IN_TESTING   = [    # e.g., "/keybase/private/foo" if you want to exclude that from test res
 ]
+
+#
+# The following regexps should probably be expanded upon and not just used by the widget, but
+# also by notifications.
+#
 IGNORE_REGEXP =
   ///
      ( .git\/ )     # anything in a .git directory
    | ( \/\._ )         # ._FILES made in OSX
    | (thumbs\.db$)     # some common OS files and temp files...
    | (desktop\.ini$)
-   | (~$)
    | (Icon\r$)
+   | (~$)              #  some_temp_file~
+   | (\#[^\/]*\#$)     #  #some_temp_file#
    | (.DS_Store$)
    | (.keybasa\/)      # anything else to exclude?
   ///
@@ -71,14 +77,14 @@ class Tlf
 
   constructor: ({@path}) ->
     @files = []
-    @tlf_participants = {}
+    @tlfParticipants = {}
 
   isPublic: ->
     ! @path.match /^\/keybase\/private\//
 
   getWriters: -> @path.split(path.sep)[3].split("#")[0].split(",")
 
-  getTlfParticipants: -> (v for k,v of @tlf_participants)
+  getTlfParticipants: -> (v for k,v of @tlfParticipants)
 
   hunt: (_, cb) ->
     esc = make_esc cb, "Tlf::hunt"
@@ -119,8 +125,8 @@ class Tlf
       file = new File {tlf: @, path, stat}
       writer = file.getWriter()
       files.push file
-      @tlf_participants[writer] or= new TlfParticipant ({tlf: @, writer})
-      @tlf_participants[writer].noteFile {file}
+      @tlfParticipants[writer] or= new TlfParticipant ({tlf: @, writer})
+      @tlfParticipants[writer].noteFile {file}
 
 
 # =================================================================================
@@ -129,20 +135,20 @@ class TlfParticipant
   # This corresponds to one person crossed with their recent write activity
   # in a TLF.
   constructor: ({@tlf, @writer}) ->
-    @last_files   = []
+    @lastFiles   = []
 
   noteFile: ({file}) ->
-    @last_files.push file
+    @lastFiles.push file
     # obviously faster way of keeping latest N when it matters
-    @last_files.sort (a,b) -> b.stat.mtime - a.stat.mtime
-    if @last_files.length > MAX_ACTIVITY_PER_ROW
-      @last_files = @last_files[...MAX_ACTIVITY_PER_ROW]
+    @lastFiles.sort (a,b) -> b.stat.mtime - a.stat.mtime
+    if @lastFiles.length > MAX_ACTIVITY_PER_ROW
+      @lastFiles = @lastFiles[...MAX_ACTIVITY_PER_ROW]
 
-  getLastFiles: -> @last_files
+  getLastFiles: -> @lastFiles
 
   getWriter: -> @writer
 
-  getMTime: -> @last_files[0].stat.mtime
+  getMTime: -> @lastFiles[0].stat.mtime
 
 # =================================================================================
 # OUR ACTUAL CODE FOR SELECTION FOLLOWS
@@ -155,20 +161,20 @@ getAllTlfParticipants = (_, cb) ->
   ###
   esc = make_esc cb, "getAllTlfParticipants"
   tlfs = []
-  tlf_participants = []
+  tlfParticipants = []
   for dir in ["/keybase/private", "/keybase/public"]
-    await fs.readdir dir, esc defer tlf_names
-    tlf_names = (tlf_name for tlf_name in tlf_names when path.join(dir,tlf_name) not in TLFS_TO_EXCLUDE_IN_TESTING)
-    for tlf_name in tlf_names[...TEST_TLF_LIMIT]
-      tlf = new Tlf {path: path.join(dir, tlf_name)}
+    await fs.readdir dir, esc defer tlfNames
+    tlfNames = (tlfName for tlfName in tlfNames when path.join(dir,tlfName) not in TLFS_TO_EXCLUDE_IN_TESTING)
+    for tlfName in tlfNames[...TEST_TLF_LIMIT]
+      tlf = new Tlf {path: path.join(dir, tlfName)}
       await tlf.hunt null, defer err
       if err
         console.error err
       else
         tlfs.push tlf
-        tlf_participants = tlf_participants.concat tlf.getTlfParticipants()
+        tlfParticipants = tlfParticipants.concat tlf.getTlfParticipants()
 
-  cb null, {tlfs, tlf_participants}
+  cb null, {tlfs, tlfParticipants}
 
 # =================================================================================
 
@@ -193,8 +199,8 @@ getMyKeybaseUsername = (_, cb) ->
 
 # =================================================================================
 
-myMostRecentParticipation = (tlf_participants, username) ->
-  for tp in tlf_participants
+myMostRecentParticipation = (tlfParticipants, username) ->
+  for tp in tlfParticipants
     if tp.getWriter() is username
       return tp
   return null
@@ -207,53 +213,55 @@ main = (_, cb) ->
 
   esc = make_esc cb, "main"
 
-  await getAllTlfParticipants null, esc defer {tlfs, tlf_participants}
+  await getAllTlfParticipants null, esc defer {tlfs, tlfParticipants}
 
   # let's sort by time
-  tlf_participants.sort (a,b) -> b.getMTime() - a.getMTime()
+  tlfParticipants.sort (a,b) -> b.getMTime() - a.getMTime()
 
-  # my last write - let's hold onto this
+  # my last write - let's hold onto this,
+  # because we want to make sure that at least one "row" has
+  # me as a writer.
   await getMyKeybaseUsername null, esc defer username
-  my_most_recent = myMostRecentParticipation(tlf_participants, username)
+  myMostRecent = myMostRecentParticipation(tlfParticipants, username)
 
   # now let's split into public and private separately so we can guarantee
   # a good mix
-  public_tlf_queue = (tp for tp in tlf_participants when tp.tlf.isPublic())
-  private_tlf_queue = (tp for tp in tlf_participants when not tp.tlf.isPublic())
-  console.log "Initially considering #{public_tlf_queue.length} public, #{private_tlf_queue.length} private"
-  num_public_wanted = Math.max (ROWS_TO_SHOW * TARGET_FRACTION_PUBLIC), (ROWS_TO_SHOW - private_tlf_queue.length)
-  public_tlf_queue = public_tlf_queue[...num_public_wanted]
-  num_private_wanted = ROWS_TO_SHOW - public_tlf_queue.length
-  private_tlf_queue = private_tlf_queue[0...num_private_wanted]
-  console.log "Now considering #{public_tlf_queue.length} public, #{private_tlf_queue.length} private"
-
-  final_candidates = public_tlf_queue.concat private_tlf_queue
+  publicTlfQueue = (tp for tp in tlfParticipants when tp.tlf.isPublic())
+  privateTlfQueue = (tp for tp in tlfParticipants when not tp.tlf.isPublic())
+  console.log "Initially considering #{publicTlfQueue.length} public TLF's, #{privateTlfQueue.length} private TLF's"
+  numPublicWanted = Math.max (ROWS_TO_SHOW * TARGET_FRACTION_PUBLIC), (ROWS_TO_SHOW - privateTlfQueue.length)
+  publicTlfQueue = publicTlfQueue[...numPublicWanted]
+  numPrivateWanted = ROWS_TO_SHOW - publicTlfQueue.length
+  privateTlfQueue = privateTlfQueue[0...numPrivateWanted]
+  console.log "Now considering #{publicTlfQueue.length} public, #{privateTlfQueue.length} private"
 
 
-  # make sure my last write is in there
-  if my_most_recent? and (my_most_recent not in final_candidates)
+  # ok, let's build the final list, combining:
+  #  public TLF participation
+  #  private TLF participation
+  #  at least one of my own
+  rowsToShow = publicTlfQueue.concat privateTlfQueue
+  if myMostRecent? and (myMostRecent not in rowsToShow)
     console.log "Pushing self onto queue"
-    final_candidates = final_candidates[...-1]
-    final_candidates.push my_most_recent
+    rowsToShow = rowsToShow[...-1]
+    rowsToShow.push myMostRecent
 
-  # finally, sort again by time, since private/public are stacked
-  final_candidates.sort (a,b) -> b.getMTime() - a.getMTime()
+  # finally, sort again by time, since private/public/myMostRecent
+  # are coming into this stacked
+  rowsToShow.sort (a,b) -> b.getMTime() - a.getMTime()
 
   console.log "==============================================================="
   console.log "A widget for #{username}"
   console.log "==============================================================="
-  for tp in final_candidates[0...ROWS_TO_SHOW]
-    # there are some files in my dir from 2185!
+  for tp in rowsToShow[0...ROWS_TO_SHOW]
     console.log "\n#{tp.writer} - #{timeDisp tp.getMTime()} - #{tp.tlf.path.split(path.sep)[2...].join(path.sep)}"
     for f, i in tp.getLastFiles()
       display_part = f.path.split(path.sep)[-1...][0]
       if (i >= COLLAPSE_AT_PER_ROW) or (tp.getMTime() - f.getMTime() > COLLAPSE_HOURS_PER_ROW * 3600*1000)
-        collapse_prefix = "     ---collapsed: "
-        collapse_suffix = " (#{timeDisp f.getMTime()})"
+        prefix = "     ---collapsed: "
       else
-        collapse_suffix = " (#{timeDisp f.getMTime()})"
-        collapse_prefix = ""
-      console.log "   #{collapse_prefix}#{display_part}#{collapse_suffix}"
+        prefix = ""
+      console.log "   #{prefix}#{display_part} (#{timeDisp f.getMTime()})"
   console.log "==============================================================="
 
 # ====================
