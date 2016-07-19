@@ -65,7 +65,7 @@ iced.catchExceptions (str) -> console.error str
 
 ##=======================================================================
 
-TEST_TLF_LIMIT               = 50 # crank to low val (10) for faster incomplete results
+TEST_TLF_LIMIT               = Infinity # crank to low val (10) for faster incomplete results
 MAX_CLUSTERS_TO_SHOW         = 20   # how many "clusters" show up in the widget
 MAX_ACTIVITY_PER_CLUSTER     = 20   # max files inside a cluster (some can be inside "show more")
 COLLAPSE_AT_PER_CLUSTER      = 5    # items after this number are collapsed
