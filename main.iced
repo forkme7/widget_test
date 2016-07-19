@@ -54,8 +54,13 @@ iced.catchExceptions (str) -> console.error str
 #     to include basic info on the upload, so that can be shown in the row (uploading...30sec remaining). The logic on that would have to be pretty smart: i
 #     if there are 500 files in a cluster's async upload queue, you'd want to include in the list the one(s) that are specifically currently getting sent
 #
+#   - if this is all tracked through some sort of journaling, we need to make sure we track enough data that a big delete doesn't
+#     clear out the widget. (i.e., we want to know the last 20 files edited in a cluster that still exist. So if someone writes 20 files and then deletes them, the
+#     previous 20 files should be available still for the widget)
+#
 #   - there may be synergies here with:
-#     - someday making decisions about prefetching,
+#     - someday making decisions about prefetching
+#     - someday showing more stuff in Finder/Explorer about which TLF's have contents?
 #
 #
 # =================================================================================
