@@ -102,20 +102,22 @@ IGNORE_REGEXP =
 class File
 
   constructor: ({@tlf, @path, @stat, @when_edited}) ->
-    # since we have no last_writer, we guess
-    @writer = @_assignRandomWriter()
+    @_writer = null # will be figured out
 
-  getWriter: -> @writer
+  getWriter: (_, cb) ->
+    esc = make_esc cb, "File::getWriter"
+    unless @_writer?
+      parts = @path.split(path.sep)
+      meta_path = parts[...-1].join(path.sep) + path.sep + ".kbfs_fileinfo_" + parts[parts.length - 1]
+      await fs.readFile meta_path, {encoding: "utf8"}, defer err, body
+      try
+        meta_info = JSON.parse body
+      catch e
+        console.log "WTF - let Chris know about this", meta_path, @path, body
+      @_writer = meta_info.LastWriterUnverified
+    cb null, @_writer
 
   getMTime: -> @stat.mtime
-
-  # -------------------------------------------------------------
-  # PRIVATE
-  # -------------------------------------------------------------
-
-  _assignRandomWriter: ->
-    candidates = @tlf.getWriters()
-    return candidates[Math.floor(Math.random() * candidates.length)]
 
 # =================================================================================
 
@@ -135,7 +137,7 @@ class Tlf
     esc = make_esc cb, "Tlf::hunt"
     files = []
     await @_huntRecurse {fpath: @path, files}, esc defer()
-    console.log "In #{@path} found #{files.length} files."
+    console.log "found #{files.length} file(s)."
     @files = files
     cb null
 
@@ -150,29 +152,28 @@ class Tlf
       for c in children
         cpath = path.join fpath, c
         await fs.lstat cpath, esc defer stat
-        if  stat.symlink
+        if  stat.isSymbolicLink()
           console.log "skipping #{cpath} due to symlink status"
         else
           if stat.isDirectory()
             await @_huntRecurse {files, fpath: cpath}, esc defer()
           else
-            @_maybeNoteFile {path: cpath, stat, files}
+            await @_maybeNoteFile {path: cpath, stat, files}, esc defer()
     cb null
 
-  _maybeNoteFile: ({path, stat, files}) ->
+  _maybeNoteFile: ({path, stat, files}, cb) ->
+    esc = make_esc cb, "Tlf::_maybeNoteFile"
     if path.match IGNORE_REGEXP
-      console.log "Ignoring #{path} due to regexp match"
-      return
+      #console.log "Ignoring #{path} due to regexp match"
     else if (stat.mtime > new Date()) and IGNORE_FILES_DATED_IN_FUTURE
       console.log "Ignoring #{path} since it was made in the FUTURE!"
-      return
     else
       file = new File {tlf: @, path, stat}
-      writer = file.getWriter()
+      await file.getWriter null, esc defer writer
       files.push file
       @clusters[writer] or= new Cluster ({tlf: @, writer})
       @clusters[writer].noteFile {file}
-
+    cb null
 
 # =================================================================================
 
@@ -209,6 +210,7 @@ getAllClusters = (_, cb) ->
     await fs.readdir dir, esc defer tlfNames
     tlfNames = (tlfName for tlfName in tlfNames when path.join(dir,tlfName) not in TLFS_TO_EXCLUDE_IN_TESTING)
     for tlfName in tlfNames[...TEST_TLF_LIMIT]
+      process.stdout.write "#{dir}/#{tlfName}..."
       tlf = new Tlf {path: path.join(dir, tlfName)}
       await tlf.hunt null, defer err
       if err
