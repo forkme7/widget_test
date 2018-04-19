@@ -70,6 +70,7 @@ iced.catchExceptions (str) -> console.error str
 
 ##=======================================================================
 
+EXCLUDE_PUBLICS_NOT_OWN      = true     # this will only allow your own public folder
 TEST_TLF_LIMIT               = Infinity # crank to low val (10) for faster incomplete results
 MAX_CLUSTERS_TO_SHOW         = 20   # how many "clusters" show up in the widget
 MAX_ACTIVITY_PER_CLUSTER     = 20   # max files inside a cluster (some can be inside "show more")
@@ -198,7 +199,7 @@ class Cluster
 # =================================================================================
 # =================================================================================
 
-getAllClusters = (_, cb) ->
+getAllClusters = ({username}, cb) ->
   ###
   This function traverses all TLF's on your computer
   and returns all Cluster instances
@@ -206,9 +207,13 @@ getAllClusters = (_, cb) ->
   esc = make_esc cb, "getAllClusters"
   tlfs = []
   clusters = []
-  for dir in ["/keybase/private", "/keybase/public"]
-    await fs.readdir dir, esc defer tlfNames
+  for dir in ["/keybase/public", "/keybase/private"]
+    if (dir is "/keybase/public") and EXCLUDE_PUBLICS_NOT_OWN
+      tlfNames = [username]
+    else
+      await fs.readdir dir, esc defer tlfNames
     tlfNames = (tlfName for tlfName in tlfNames when path.join(dir,tlfName) not in TLFS_TO_EXCLUDE_IN_TESTING)
+
     for tlfName in tlfNames[...TEST_TLF_LIMIT]
       process.stdout.write "#{dir}/#{tlfName}..."
       tlf = new Tlf {path: path.join(dir, tlfName)}
@@ -258,7 +263,8 @@ main = (_, cb) ->
 
   esc = make_esc cb, "main"
 
-  await getAllClusters null, esc defer {tlfs, clusters}
+  await getMyKeybaseUsername null, esc defer username
+  await getAllClusters {username}, esc defer {tlfs, clusters}
 
   # let's sort by time
   clusters.sort (a,b) -> b.getMTime() - a.getMTime()
@@ -266,7 +272,6 @@ main = (_, cb) ->
   # my last write - let's hold onto this,
   # because we want to make sure that at least one cluster has
   # me as a writer.
-  await getMyKeybaseUsername null, esc defer username
   myMostRecent = myMostRecentCluster(clusters, username)
 
   # now let's split into public and private separately so we can guarantee
